@@ -1,0 +1,10 @@
+name: Man10PVPscore
+version: ${project.version}
+main: red.man10.man10pvpscore.Man10PVPscore
+authors: [Mr_IK]
+description: Man10PVPscorePlugin
+commands:
+  mps:
+    description: man10pvpscore_maincommand
+    usage: /<command>
+    default: op

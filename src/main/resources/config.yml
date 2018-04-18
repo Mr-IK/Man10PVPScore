@@ -1,0 +1,6 @@
+mysql:
+  host: 'localhost'
+  user: 'username'
+  pass: 'password'
+  port: '3306'
+  db: 'Man10pvpscore'
