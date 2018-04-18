@@ -180,7 +180,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    return true;
                }else if(args[1].equalsIgnoreCase("join")) {
                    String arenaname = args[2];
-                   if(!config1.contains("arena."+arenaname)){
+                   if(!config1.contains("arenas."+arenaname)){
                        p.sendMessage(prefix + "§cそのarenaは存在しません！");
                        return true;
                    }
@@ -199,7 +199,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        return true;
                    }
                    String arenaname = args[2];
-                   if(!config1.contains("arena."+arenaname)){
+                   if(!config1.contains("arenas."+arenaname)){
                        p.sendMessage(prefix + "§cそのarenaは存在しません！");
                        return true;
                    }
@@ -213,7 +213,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        return true;
                    }
                    String arenaname = args[2];
-                   if(!config1.contains("arena."+arenaname)){
+                   if(!config1.contains("arenas."+arenaname)){
                        p.sendMessage(prefix + "§cそのarenaは存在しません！");
                        return true;
                    }
@@ -231,7 +231,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                         return true;
                     }
                     String arenaname = args[2];
-                    if(!config1.contains("arena."+arenaname)){
+                    if(!config1.contains("arenas."+arenaname)){
                         p.sendMessage(prefix + "§cそのarenaは存在しません！");
                         return true;
                     }
@@ -264,7 +264,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                         return true;
                     }
                     String arenaname = args[2];
-                    if(!config1.contains("arena."+arenaname)){
+                    if(!config1.contains("arenas."+arenaname)){
                         p.sendMessage(prefix + "§cそのarenaは存在しません！");
                         return true;
                     }
