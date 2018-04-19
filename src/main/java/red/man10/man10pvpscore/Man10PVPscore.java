@@ -10,7 +10,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -30,6 +29,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
     Pointset ps;
     String prefix = "§c[§4Man10§cPVP§eScore§c]";
     public FileConfiguration config1;
+    List<String> worlds ;
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
@@ -37,10 +37,10 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                 if (args[0].equalsIgnoreCase("reload")) {
                     getServer().getPluginManager().disablePlugin(this);
                     getServer().getPluginManager().enablePlugin(this);
-                    getLogger().info(prefix + "§a設定を再読み込みしました。");
+                    getLogger().info(ChatColor.GREEN + "設定を再読み込みしました。");
                     return true;
                 }
-                getLogger().info(prefix + ChatColor.RED + "mps reload");
+                getLogger().info(ChatColor.RED + "mps reload");
                 return true;
             }
         }
@@ -125,7 +125,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                         return true;
                     }
                     for (String key : config1.getConfigurationSection("arenas").getKeys(false)) {
-                        p.sendMessage(prefix + "§e"+key+": §a"+config1.getString("arenas."+key+".joingroup"));
+                        p.sendMessage(prefix + "§e"+key);
                     }
                     return true;
                 }
@@ -185,7 +185,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        return true;
                    }
                    if(config1.getString("arenas."+arenaname+".joingroup."+getRank(pg.run(p))).equalsIgnoreCase("true")){
-                       Location loc = (Location) config1.get("arena."+arenaname+".location");
+                       Location loc = (Location) config1.get("arenas."+arenaname+".location");
                        p.teleport(loc);
                        p.sendMessage(prefix + "§e"+arenaname+"§aArenaにjoinしました。");
                        return true;
@@ -222,6 +222,27 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaを削除しました。");
                    return true;
                }
+            }else if(args[0].equalsIgnoreCase("pay")) {
+                String payname = args[1];
+                if(Bukkit.getPlayer(payname)==null){
+                    p.sendMessage(prefix+"§4そのプレイヤーは現在オフラインです！");
+                    return true;
+                }
+                Player payplayer = Bukkit.getPlayer(payname);
+                int pay = 0;
+                try {
+                    pay = Integer.valueOf(args[2]);
+                }catch(NumberFormatException e){
+                    p.sendMessage(prefix+"§4ポイントは数字でお書きください！");
+                    return true;
+                }
+                int ppoint = pg.run(p) - pay;
+                ps.run(p,ppoint);
+                int paypoint = pg.run(payplayer) + pay;
+                ps.run(payplayer,paypoint);
+                p.sendMessage(prefix+"§a"+payname+"に§e"+pay+"p§a送信しました。");
+                payplayer.sendMessage(prefix+"§a"+payname+"から§e"+pay+"p§a受け取りました。");
+                return true;
             }
         }else if(args.length == 4) {
             if(args[0].equalsIgnoreCase("arena")) {
@@ -256,7 +277,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     }
                     config1.set("arenas."+arenaname+".joingroup."+groupname,"true");
                     saveConfig();
-                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaに"+groupname+"を追加§aしました。");
+                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaに"+groupname+"§aを追加しました。");
                     return true;
                 }else if(args[1].equalsIgnoreCase("removegroup")) {
                     if (!p.hasPermission("man10pvpscore.arena.removegroup")) {
@@ -289,7 +310,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     }
                     config1.set("arenas."+arenaname+".joingroup."+groupname,"false");
                     saveConfig();
-                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaに"+groupname+"を除外§aしました。");
+                    p.sendMessage(prefix + "§e"+arenaname+"§cArenaに"+groupname+"§cを除外しました。");
                     return true;
                 }
             }
@@ -310,6 +331,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         saveDefaultConfig();
         FileConfiguration config = getConfig();
         config1 = config;
+        worlds = config1.getStringList("pvpworlds");
     }
 
     @Override
@@ -325,15 +347,23 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         }
     }
     @EventHandler
-    public void onDeath(PlayerDeathEvent event) {
+    public void onDeath(PlayerDeathEvent event){
+        if(!worlds.contains(event.getEntity().getWorld().getName())){
+            return;
+        }
         Player korosita = event.getEntity().getKiller();
         Player korosareta = event.getEntity();
-        if(!korosita.equals(null)){
+        if(korosita != null){
             int korositapoint = pg.run(korosita);
             int korosaretapoint = pg.run(korosareta);
             if(korosaretapoint == 0){
-                korosita.sendMessage(prefix+"§aあなたは"+korosareta.getName()+"をkillしたが相手はPointを持っていなかった");
-                korosareta.sendMessage(prefix+"§cあなたは"+korosita.getName()+"にkillされたがあなたはPointを持っていなかった");
+                korosita.sendMessage(prefix+"§aあなたは"+korosareta.getName()+"をkillしたが相手は0pだった");
+                korosareta.sendMessage(prefix+"§cあなたは"+korosita.getName()+"にkillされたがあなたは0pだった");
+                return;
+            }
+            if(korositapoint == 0){
+                korosita.sendMessage(prefix+"§cあなたは"+korosareta.getName()+"をkillしたがあなたは0pだった");
+                korosareta.sendMessage(prefix+"§aあなたは"+korosita.getName()+"にkillされたが相手は0pだった");
                 return;
             }
             int getpoint = 0;
@@ -349,7 +379,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         }
     }
     public String getRank(int point){
-        if(point > 0&&point < 10){
+        if(point >= 0&&point < 10){
             return "§eBaby";
         }else if(point >= 10&&point < 50){
             return "§6Kid";
