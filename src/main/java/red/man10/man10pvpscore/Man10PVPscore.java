@@ -18,6 +18,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
     String prefix = "§c[§4Man10§cPVP§eScore§c]";
     public FileConfiguration config1;
     List<String> worlds ;
+    private HashMap<UUID,String> playerState;
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
@@ -37,10 +39,10 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                 if (args[0].equalsIgnoreCase("reload")) {
                     getServer().getPluginManager().disablePlugin(this);
                     getServer().getPluginManager().enablePlugin(this);
-                    getLogger().info(ChatColor.GREEN + "設定を再読み込みしました。");
+                    getLogger().info("設定を再読み込みしました。");
                     return true;
                 }
-                getLogger().info(ChatColor.RED + "mps reload");
+                getLogger().info("mps reload");
                 return true;
             }
         }
@@ -58,6 +60,9 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     p.sendMessage(prefix+"§cランキングが存在しません");
                     return true;
                 }
+                Pointtotal pt = new Pointtotal();
+                int pointtotal = pt.run(p);
+                p.sendMessage(prefix+"§a鯖内合計流通point: §e"+pointtotal+"p");
                 for(String key:get){
                     ranking++;
                     String name = null;
@@ -75,31 +80,16 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    p.sendMessage(prefix+"§e"+ranking+"位: §6"+name+" §e"+point+"p");
                 }
                 return true;
-            }else if(args[0].equalsIgnoreCase("getitem")) {
-                if(pg.run(p)<5) {
-                    p.sendMessage(prefix + "§cあなたにはpointが足りません！");
-                    return true;
-                }
-                ps.run(p,pg.run(p)-5);
-                ItemStack item = new ItemStack(Material.INK_SACK,1,(short)1);
-                ItemMeta itemmeta = item.getItemMeta();
-                itemmeta.addEnchant(Enchantment.DAMAGE_ALL,1,true);
-                itemmeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-                itemmeta.setDisplayName("§4§lKiller's Ruby§r");
-                List<String> kk = new ArrayList<String>();
-                kk.add("§c殺人者のルビー。");
-                kk.add("§c特別なアイテムと交換できる");
-                itemmeta.setLore(kk);
-                item.setItemMeta(itemmeta);
-                p.getInventory().addItem(item);
-                p.sendMessage(prefix + "§a5pとアイテムを交換しました");
-                return true;
             }else if(args[0].equalsIgnoreCase("help")) {
+                p.sendMessage(prefix + "§a=================User用 HELP=================");
                 p.sendMessage(prefix + "§e/mps ranking : ランキングを表示");
                 p.sendMessage(prefix + "§e/mps : スコアを表示");
-                p.sendMessage(prefix + "§e/mps getitem : アイテムをゲット");
+                p.sendMessage(prefix + "§e/mps user [user名] : user情報を確認");
+                p.sendMessage(prefix + "§e/mps pay [プレイヤー名] [送りたいpoint] : point送信");
                 p.sendMessage(prefix + "§e/mps arena join [arena名] : arenaにjoin");
+                p.sendMessage(prefix + "§e/mps returnmode : 0pの場合1億支払い復活モードになれる");
                 p.sendMessage(prefix + "§e/mps arena list : arenalistを表示");
+                p.sendMessage(prefix + "§a=================User用 HELP=================");
                 return true;
             }else if(args[0].equalsIgnoreCase("adminhelp")) {
                 if (!p.hasPermission("man10pvpscore.adminhelp")) {
@@ -107,14 +97,41 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     return true;
                 }
                 p.sendMessage(prefix + "§c=================Admin用 HELP=================");
+                p.sendMessage(prefix + "§e/mps add [user名] [追加ポイント] : pointをadd");
+                p.sendMessage(prefix + "§e/mps remove [user名] [引くポイント] : pointをremove");
+                p.sendMessage(prefix + "§e/mps reload : configをreload");
                 p.sendMessage(prefix + "§e/mps set [user名] [設定ポイント] : pointをset");
                 p.sendMessage(prefix + "§e/mps arena create [arena名] : arenaを作成");
                 p.sendMessage(prefix + "§e/mps arena remove [arena名] : arenaを削除");
                 p.sendMessage(prefix + "§e/mps arena setloc [arena名] : arenaのlocationを再設定");
                 p.sendMessage(prefix + "§e/mps arena addgroup [arena名] [group名] : arenaにgroupを追加");
                 p.sendMessage(prefix + "§e/mps arena removegroup [arena名] [group名]: arenaからgroupを除外");
+                p.sendMessage(prefix + "§e/mps arena pexmode [arena名] true/false : 権限モードのon/off");
                 p.sendMessage(prefix + "§eグループ名一覧: Baby,Kid,Player,Good_Player,Killer,Crazy_Killer,God_Killer");
                 p.sendMessage(prefix + "§c=================Admin用 HELP=================");
+                return true;
+            }else if(args[0].equalsIgnoreCase("returnmode")){
+                if(val.getBalance(p.getUniqueId())<100000000){
+                    p.sendMessage(prefix + "§4お金が足りません！");
+                    return true;
+                }
+                if(pg.run(p)!=0) {
+                    p.sendMessage(prefix + "§cあなたは0pではありません！");
+                    return true;
+                }
+                val.withdraw(p.getUniqueId(),100000000);
+                playerState.put(p.getUniqueId(),"returnmode");
+                p.sendMessage(prefix + "§aあなたを復活戦モードに変更しました。");
+                p.sendMessage(prefix + "§a死なずに1回でもkillできた場合1pが付与されます");
+                return true;
+            }else if(args[0].equalsIgnoreCase("reload")) {
+                if (!p.hasPermission("man10pvpscore.reload")) {
+                    p.sendMessage(prefix + "§cあなたにはreloadを行う権限がありません！");
+                    return true;
+                }
+                getServer().getPluginManager().disablePlugin(this);
+                getServer().getPluginManager().enablePlugin(this);
+                p.sendMessage(prefix+"§a設定を再読み込みしました。");
                 return true;
             }
         }else if(args.length == 2) {
@@ -129,10 +146,29 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     }
                     return true;
                 }
+            }else if(args[0].equalsIgnoreCase("user")) {
+                String username = args[1];
+                if(Bukkit.getPlayer(username) != null){
+                    if (!pc.run(Bukkit.getPlayer(args[1]))) {
+                        p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
+                        return true;
+                    }
+                    p.sendMessage(prefix+"§a"+username+"のPvPScore: §e"+pg.run(Bukkit.getPlayer(args[1]))+"p");
+                    p.sendMessage(prefix+"§a"+username+"のPvPrank: §r"+getRank(pg.run(Bukkit.getPlayer(args[1]))));
+                    return true;
+                }else{
+                    if (!pc.run(Bukkit.getOfflinePlayer(username))) {
+                        p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
+                        return true;
+                    }
+                    p.sendMessage(prefix+"§a"+username+"のPvPScore: §e"+pg.run(Bukkit.getOfflinePlayer(username))+"p");
+                    p.sendMessage(prefix+"§a"+username+"のPvPrank: §r"+getRank(pg.run(Bukkit.getOfflinePlayer(username))));
+                    return true;
+                }
             }
         }else if(args.length == 3) {
             if(args[0].equalsIgnoreCase("set")) {
-                if(!p.hasPermission("man10pvpscore.set")){
+                if (!p.hasPermission("man10pvpscore.set")) {
                     p.sendMessage(prefix + "§cあなたにはpointをsetする権限がありません！");
                     return true;
                 }
@@ -143,21 +179,83 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     p.sendMessage(prefix + "§4数字で指定してください。");
                     return true;
                 }
-                if(Bukkit.getPlayer(args[1]) != null){
+                if (Bukkit.getPlayer(args[1]) != null) {
                     if (!pc.run(Bukkit.getPlayer(args[1]))) {
                         p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
                         return true;
                     }
-                    ps.run(Bukkit.getPlayer(args[1]),get);
-                    p.sendMessage(prefix + "§e"+Bukkit.getPlayer(args[1]).getName()+"§aのポイントを§e"+get+"p§aにsetしました");
+                    ps.run(Bukkit.getPlayer(args[1]), get);
+                    p.sendMessage(prefix + "§e" + Bukkit.getPlayer(args[1]).getName() + "§aのポイントを§e" + get + "p§aにsetしました");
                     return true;
-                }else{
+                } else {
                     if (!pc.run(Bukkit.getOfflinePlayer(args[1]))) {
                         p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
                         return true;
                     }
-                    ps.run(Bukkit.getOfflinePlayer(args[1]),get);
-                    p.sendMessage(prefix + "§e"+Bukkit.getPlayer(args[1]).getName()+"§aのポイントを§e"+get+"p§aにsetしました");
+                    ps.run(Bukkit.getOfflinePlayer(args[1]), get);
+                    p.sendMessage(prefix + "§e" + Bukkit.getOfflinePlayer(args[1]).getName() + "§aのポイントを§e" + get + "p§aにsetしました");
+                    return true;
+                }
+            }else if(args[0].equalsIgnoreCase("add")) {
+                if (!p.hasPermission("man10pvpscore.add")) {
+                    p.sendMessage(prefix + "§cあなたにはpointをaddする権限がありません！");
+                    return true;
+                }
+                int get = 0;
+                try {
+                    get = Integer.parseInt(args[2]);
+                } catch (NumberFormatException e) {
+                    p.sendMessage(prefix + "§4数字で指定してください。");
+                    return true;
+                }
+                if (Bukkit.getPlayer(args[1]) != null) {
+                    if (!pc.run(Bukkit.getPlayer(args[1]))) {
+                        p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
+                        return true;
+                    }
+                    int getpoint = pg.run(Bukkit.getPlayer(args[1]));
+                    ps.run(Bukkit.getPlayer(args[1]), getpoint + get);
+                    p.sendMessage(prefix + "§e" + Bukkit.getPlayer(args[1]).getName() + "§aのポイントを§e" + get + "p§a増やしました");
+                    return true;
+                } else {
+                    if (!pc.run(Bukkit.getOfflinePlayer(args[1]))) {
+                        p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
+                        return true;
+                    }
+                    int getpoint = pg.run(Bukkit.getOfflinePlayer(args[1]));
+                    ps.run(Bukkit.getOfflinePlayer(args[1]), getpoint + get);
+                    p.sendMessage(prefix + "§e" + Bukkit.getOfflinePlayer(args[1]).getName() + "§aのポイントを§e" + get + "p§a増やしました");
+                    return true;
+                }
+            }else if(args[0].equalsIgnoreCase("remove")) {
+                if (!p.hasPermission("man10pvpscore.add")) {
+                    p.sendMessage(prefix + "§cあなたにはpointをremoveする権限がありません！");
+                    return true;
+                }
+                int get = 0;
+                try {
+                    get = Integer.parseInt(args[2]);
+                } catch (NumberFormatException e) {
+                    p.sendMessage(prefix + "§4数字で指定してください。");
+                    return true;
+                }
+                if (Bukkit.getPlayer(args[1]) != null) {
+                    if (!pc.run(Bukkit.getPlayer(args[1]))) {
+                        p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
+                        return true;
+                    }
+                    int getpoint = pg.run(Bukkit.getPlayer(args[1]));
+                    ps.run(Bukkit.getPlayer(args[1]), getpoint - get);
+                    p.sendMessage(prefix + "§e" + Bukkit.getPlayer(args[1]).getName() + "§aのポイントを§e" + get + "p§a減らしました");
+                    return true;
+                } else {
+                    if (!pc.run(Bukkit.getOfflinePlayer(args[1]))) {
+                        p.sendMessage(prefix + "§4そのプレイヤーは存在しません");
+                        return true;
+                    }
+                    int getpoint = pg.run(Bukkit.getOfflinePlayer(args[1]));
+                    ps.run(Bukkit.getOfflinePlayer(args[1]), getpoint - get);
+                    p.sendMessage(prefix + "§e" + Bukkit.getOfflinePlayer(args[1]).getName() + "§aのポイントを§e" + get + "p§a減らしました");
                     return true;
                 }
             }else if(args[0].equalsIgnoreCase("arena")) {
@@ -168,6 +266,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    }
                    String arenaname = args[2];
                    config1.set("arenas."+arenaname+".location",p.getLocation());
+                   config1.set("arenas."+arenaname+".pexmode","false");
                    config1.set("arenas."+arenaname+".joingroup.§eBaby","true");
                    config1.set("arenas."+arenaname+".joingroup.§6Kid","true");
                    config1.set("arenas."+arenaname+".joingroup.§aPlayer","false");
@@ -184,13 +283,26 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        p.sendMessage(prefix + "§cそのarenaは存在しません！");
                        return true;
                    }
-                   if(config1.getString("arenas."+arenaname+".joingroup."+getRank(pg.run(p))).equalsIgnoreCase("true")){
-                       Location loc = (Location) config1.get("arenas."+arenaname+".location");
+                   if(config1.getString("arenas."+arenaname+".pexmode").equalsIgnoreCase("false")) {
+                       if (config1.getString("arenas." + arenaname + ".joingroup." + getRank(pg.run(p))).equalsIgnoreCase("true")) {
+                           p.setBedSpawnLocation(p.getLocation(),true);
+                           Location loc = (Location) config1.get("arenas." + arenaname + ".location");
+                           p.teleport(loc);
+                           p.sendMessage(prefix + "§e" + arenaname + "§aArenaにjoinしました。");
+                           return true;
+                       } else {
+                           p.sendMessage(prefix + "§cあなたのランクが登録されていないためこのArenaにjoinできません！");
+                           return true;
+                       }
+                   }else{
+                       if (!p.hasPermission("man10pvpscore.join."+arenaname)) {
+                           p.sendMessage(prefix + "§cあなたにはこのarenaにjoinする権限がありません！");
+                           return true;
+                       }
+                       p.setBedSpawnLocation(p.getLocation(),true);
+                       Location loc = (Location) config1.get("arenas." + arenaname + ".location");
                        p.teleport(loc);
-                       p.sendMessage(prefix + "§e"+arenaname+"§aArenaにjoinしました。");
-                       return true;
-                   }else {
-                       p.sendMessage(prefix + "§cあなたのランクが登録されていないためこのArenaにjoinできません！");
+                       p.sendMessage(prefix + "§e" + arenaname + "§aArenaにjoinしました。");
                        return true;
                    }
                }else if(args[1].equalsIgnoreCase("setloc")) {
@@ -241,7 +353,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                 int paypoint = pg.run(payplayer) + pay;
                 ps.run(payplayer,paypoint);
                 p.sendMessage(prefix+"§a"+payname+"に§e"+pay+"p§a送信しました。");
-                payplayer.sendMessage(prefix+"§a"+payname+"から§e"+pay+"p§a受け取りました。");
+                payplayer.sendMessage(prefix+"§a"+p.getName()+"から§e"+pay+"p§a受け取りました。");
                 return true;
             }
         }else if(args.length == 4) {
@@ -312,6 +424,25 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                     saveConfig();
                     p.sendMessage(prefix + "§e"+arenaname+"§cArenaに"+groupname+"§cを除外しました。");
                     return true;
+                }else if(args[1].equalsIgnoreCase("pexmode")) {
+                    if (!p.hasPermission("man10pvpscore.arena.pexmode")) {
+                        p.sendMessage(prefix + "§cあなたには権限設定の切り替えをする権限がありません！");
+                        return true;
+                    }
+                    String arenaname = args[2];
+                    if(!config1.contains("arenas."+arenaname)){
+                        p.sendMessage(prefix + "§cそのarenaは存在しません！");
+                        return true;
+                    }
+                    String trueorfalse = args[3];
+                    if(!trueorfalse.equalsIgnoreCase("true")&&!trueorfalse.equalsIgnoreCase("false")){
+                        p.sendMessage(prefix + "§ctrueかfalseで入力してください");
+                        return true;
+                    }
+                    config1.set("arenas."+arenaname+".pexmode",trueorfalse);
+                    saveConfig();
+                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaのpexmodeを§e"+trueorfalse+"§aに設定しました。");
+                    return true;
                 }
             }
         }
@@ -332,6 +463,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         FileConfiguration config = getConfig();
         config1 = config;
         worlds = config1.getStringList("pvpworlds");
+        playerState = new HashMap<>();
     }
 
     @Override
@@ -353,6 +485,18 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         }
         Player korosita = event.getEntity().getKiller();
         Player korosareta = event.getEntity();
+        if(playerState.containsKey(korosita.getUniqueId())){
+            korosita.sendMessage(prefix+"§aおめでとう！あなたは復活した！");
+            korosareta.sendMessage(prefix+"§cあなたは"+korosita.getName()+"にkillされたが相手は復活戦モードだった");
+            ps.run(korosita,1);
+            playerState.remove(korosita.getUniqueId());
+            return;
+        }else if(playerState.containsKey(korosareta.getUniqueId())){
+            korosareta.sendMessage(prefix+"§c残念！復活に失敗した！");
+            korosita.sendMessage(prefix+"§aあなたは"+korosareta.getName()+"をkillしたが相手は復活戦モードだった");
+            playerState.remove(korosareta.getUniqueId());
+            return;
+        }
         if(korosita != null){
             int korositapoint = pg.run(korosita);
             int korosaretapoint = pg.run(korosareta);
@@ -374,8 +518,21 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
             }
             ps.run(korosita,korositapoint+getpoint);
             ps.run(korosareta,korosaretapoint - getpoint);
-            korosita.sendMessage(prefix+"§aあなたは"+korosareta.getName()+"をkillし"+getpoint+"pを手に入れた");
-            korosareta.sendMessage(prefix+"§cあなたは"+korosita.getName()+"にkillされ"+getpoint+"pを失った");
+            //ここまで、ポイント処理。ここから、金額処理
+            double korositamoney = val.getBalance(korosita.getUniqueId());
+            double korosaretamoney = val.getBalance(korosareta.getUniqueId());
+            double getmoney = 0;
+            if(korosaretamoney < 200000){
+                getmoney = korosaretamoney / 2;
+            }else{
+                getmoney = 100000;
+            }
+            val.deposit(korosita.getUniqueId(),getmoney);
+            val.withdraw(korosareta.getUniqueId(),getmoney);
+            //ここまで、金額処理。次、結果整理
+            korosita.sendMessage(prefix+"§aあなたは§e"+korosareta.getName()+"§aをkillし§e"+getpoint+"pと$"+getmoney+"§aを手に入れた");
+            korosareta.sendMessage(prefix+"§cあなたは§e"+korosita.getName()+"§cにkillされ§e"+getpoint+"pと$"+getmoney+"§cを失った");
+            return;
         }
     }
     public String getRank(int point){
@@ -495,7 +652,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
 
             String sql = "SELECT * FROM "+mysql.DB+".playerdata ORDER BY point DESC;";
             ResultSet rs = mysql.query(sql);
-            String[] strings = new String[9];
+            String[] strings = new String[10];
             try {
                for(int i = 0; i <= 9; i++) {
                    if (rs.next()) {
@@ -512,6 +669,28 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
             } catch (NullPointerException e1) {
                 e1.printStackTrace();
                 return null;
+            }
+        }
+    }
+    public class Pointtotal extends Thread {
+        public int run(Player p) {
+
+            String sql = "SELECT sum(point) FROM "+mysql.DB+".playerdata;";
+            ResultSet rs = mysql.query(sql);
+            try {
+                int get;
+                    if (rs.next()) {
+                        get = rs.getInt(1);
+                    }else{
+                        return 0;
+                    }
+                return get;
+            } catch (SQLException e1) {
+                e1.printStackTrace();
+                return 0;
+            } catch (NullPointerException e1) {
+                e1.printStackTrace();
+                return 0;
             }
         }
     }

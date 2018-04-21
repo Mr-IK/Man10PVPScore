@@ -5,4 +5,4 @@ mysql:
   port: '3306'
   db: 'Man10pvpscore'
 pvpworlds:
-- pvp
+- 'pvp'
