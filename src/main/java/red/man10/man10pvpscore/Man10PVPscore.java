@@ -4,20 +4,19 @@ import org.bukkit.*;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.inventory.ItemFlag;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -25,13 +24,16 @@ import java.util.UUID;
 public final class Man10PVPscore extends JavaPlugin implements Listener {
     VaultManager val = null;
     public MySOLManager mysql;
+    CustomConfig cc;
     Playercontain pc;
     Pointget pg;
     Pointset ps;
     String prefix = "§c[§4Man10§cPVP§eScore§c]";
     public FileConfiguration config1;
+    public FileConfiguration config2;
     List<String> worlds ;
     private HashMap<UUID,String> playerState;
+    private HashMap<UUID,PlayerInventory> kitpvp;
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
@@ -107,6 +109,10 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                 p.sendMessage(prefix + "§e/mps arena addgroup [arena名] [group名] : arenaにgroupを追加");
                 p.sendMessage(prefix + "§e/mps arena removegroup [arena名] [group名]: arenaからgroupを除外");
                 p.sendMessage(prefix + "§e/mps arena pexmode [arena名] true/false : 権限モードのon/off");
+                p.sendMessage(prefix + "§e/mps arena setkit [arena名] [キット名] : arenaのkitを設定。'none'でなし");
+                p.sendMessage(prefix + "§e/mps kit create [kit名] : kitを作成");
+                p.sendMessage(prefix + "§e/mps kit update [kit名] : kitを更新");
+                p.sendMessage(prefix + "§e/mps kit remove [kit名] : kitを削除");
                 p.sendMessage(prefix + "§eグループ名一覧: Baby,Kid,Player,Good_Player,Killer,Crazy_Killer,God_Killer");
                 p.sendMessage(prefix + "§c=================Admin用 HELP=================");
                 return true;
@@ -132,6 +138,17 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                 getServer().getPluginManager().disablePlugin(this);
                 getServer().getPluginManager().enablePlugin(this);
                 p.sendMessage(prefix+"§a設定を再読み込みしました。");
+                return true;
+            }else if(args[0].equalsIgnoreCase("leave")) {
+                if(kitpvp.containsKey(p.getUniqueId())){
+                    PlayerInventory inv = kitpvp.get(p.getUniqueId());
+                    p.getInventory().clear();
+                    p.getInventory().setArmorContents(inv.getArmorContents());
+                    p.getInventory().setContents(inv.getContents());
+                    p.updateInventory();
+                }
+                p.teleport(p.getBedSpawnLocation());
+                p.sendMessage(prefix+"§apvpからleaveしました。");
                 return true;
             }
         }else if(args.length == 2) {
@@ -267,6 +284,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    String arenaname = args[2];
                    config1.set("arenas."+arenaname+".location",p.getLocation());
                    config1.set("arenas."+arenaname+".pexmode","false");
+                   config1.set("arenas."+arenaname+".kit","none");
                    config1.set("arenas."+arenaname+".joingroup.§eBaby","true");
                    config1.set("arenas."+arenaname+".joingroup.§6Kid","true");
                    config1.set("arenas."+arenaname+".joingroup.§aPlayer","false");
@@ -274,7 +292,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    config1.set("arenas."+arenaname+".joingroup.§4Killer","false");
                    config1.set("arenas."+arenaname+".joingroup.§4§lCrazy_Killer","false");
                    config1.set("arenas."+arenaname+".joingroup.§4§l§oGod_Killer","false");
-                   saveConfig();
+                   cc.saveConfig();
                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaを作成しました。");
                    return true;
                }else if(args[1].equalsIgnoreCase("join")) {
@@ -285,6 +303,16 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                    }
                    if(config1.getString("arenas."+arenaname+".pexmode").equalsIgnoreCase("false")) {
                        if (config1.getString("arenas." + arenaname + ".joingroup." + getRank(pg.run(p))).equalsIgnoreCase("true")) {
+                           if(!config1.getString("arenas."+arenaname+".kit").equalsIgnoreCase("none")){
+                               if(config1.contains("kit."+config1.getString("arenas."+arenaname+".kit"))){
+                                   kitpvp.put(p.getUniqueId(),p.getInventory());
+                                   p.getInventory().clear();
+                                   PlayerInventory kit = (PlayerInventory) config1.get("kit."+config1.getString("arenas."+arenaname+".kit")+".inv");
+                                   p.getInventory().setContents(kit.getContents());
+                                   p.getInventory().setArmorContents(kit.getArmorContents());
+                                   p.updateInventory();
+                               }
+                           }
                            p.setBedSpawnLocation(p.getLocation(),true);
                            Location loc = (Location) config1.get("arenas." + arenaname + ".location");
                            p.teleport(loc);
@@ -298,6 +326,16 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        if (!p.hasPermission("man10pvpscore.join."+arenaname)) {
                            p.sendMessage(prefix + "§cあなたにはこのarenaにjoinする権限がありません！");
                            return true;
+                       }
+                       if(!config1.getString("arenas."+arenaname+".kit").equalsIgnoreCase("none")){
+                           if(config1.contains("kit."+config1.getString("arenas."+arenaname+".kit"))){
+                               kitpvp.put(p.getUniqueId(),p.getInventory());
+                               p.getInventory().clear();
+                               PlayerInventory kit = (PlayerInventory) config1.get("kit."+config1.getString("arenas."+arenaname+".kit")+".inv");
+                               p.getInventory().setContents(kit.getContents());
+                               p.getInventory().setArmorContents(kit.getArmorContents());
+                               p.updateInventory();
+                           }
                        }
                        p.setBedSpawnLocation(p.getLocation(),true);
                        Location loc = (Location) config1.get("arenas." + arenaname + ".location");
@@ -316,7 +354,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        return true;
                    }
                    config1.set("arenas."+arenaname+".location",p.getLocation());
-                   saveConfig();
+                   cc.saveConfig();
                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaのロケーションを再設定しました。");
                    return true;
                }else if(args[1].equalsIgnoreCase("remove")) {
@@ -330,7 +368,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                        return true;
                    }
                    config1.set("arenas."+arenaname,null);
-                   saveConfig();
+                   cc.saveConfig();
                    p.sendMessage(prefix + "§e"+arenaname+"§aArenaを削除しました。");
                    return true;
                }
@@ -355,6 +393,55 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                 p.sendMessage(prefix+"§a"+payname+"に§e"+pay+"p§a送信しました。");
                 payplayer.sendMessage(prefix+"§a"+p.getName()+"から§e"+pay+"p§a受け取りました。");
                 return true;
+            }else if(args[0].equalsIgnoreCase("kit")) {
+                if(args[1].equalsIgnoreCase("create")) {
+                    if (!p.hasPermission("man10pvpscore.kit.create")) {
+                        p.sendMessage(prefix + "§cあなたにはkitを作成する権限がありません！");
+                        return true;
+                    }
+                    String kitname = args[2];
+                    if(config1.contains("kit."+kitname)){
+                        p.sendMessage(prefix+"§4そのkitはすでに存在します");
+                        p.sendMessage(prefix+"§ckitを更新: /mps kit update [kit名]");
+                        return true;
+                    }
+                    PlayerInventory pinv = p.getInventory();
+                    config1.set("kit."+kitname+".inv",pinv);
+                    cc.saveConfig();
+                    p.sendMessage(prefix+"§e"+kitname+"§akitを作成しました。");
+                    return true;
+                }else if(args[1].equalsIgnoreCase("update")) {
+                    if (!p.hasPermission("man10pvpscore.kit.update")) {
+                        p.sendMessage(prefix + "§cあなたにはkitを更新する権限がありません！");
+                        return true;
+                    }
+                    String kitname = args[2];
+                    if(!config1.contains("kit."+kitname)){
+                        p.sendMessage(prefix+"§4そのkitは存在しません");
+                        p.sendMessage(prefix+"§ckitを作成: /mps kit create [kit名]");
+                        return true;
+                    }
+                    PlayerInventory pinv = p.getInventory();
+                    config1.set("kit."+kitname+".inv",pinv);
+                    cc.saveConfig();
+                    p.sendMessage(prefix+"§e"+kitname+"§akitを更新しました。");
+                    return true;
+                }else if(args[1].equalsIgnoreCase("remove")) {
+                    if (!p.hasPermission("man10pvpscore.kit.remove")) {
+                        p.sendMessage(prefix + "§cあなたにはkitを削除する権限がありません！");
+                        return true;
+                    }
+                    String kitname = args[2];
+                    if(!config1.contains("kit."+kitname)){
+                        p.sendMessage(prefix+"§4そのkitは存在しません");
+                        p.sendMessage(prefix+"§ckitを作成: /mps kit create [kit名]");
+                        return true;
+                    }
+                    config1.set("kit."+kitname,null);
+                    cc.saveConfig();
+                    p.sendMessage(prefix+"§e"+kitname+"§ckitを削除しました。");
+                    return true;
+                }
             }
         }else if(args.length == 4) {
             if(args[0].equalsIgnoreCase("arena")) {
@@ -388,7 +475,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                         return true;
                     }
                     config1.set("arenas."+arenaname+".joingroup."+groupname,"true");
-                    saveConfig();
+                    cc.saveConfig();
                     p.sendMessage(prefix + "§e"+arenaname+"§aArenaに"+groupname+"§aを追加しました。");
                     return true;
                 }else if(args[1].equalsIgnoreCase("removegroup")) {
@@ -421,7 +508,7 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                         return true;
                     }
                     config1.set("arenas."+arenaname+".joingroup."+groupname,"false");
-                    saveConfig();
+                    cc.saveConfig();
                     p.sendMessage(prefix + "§e"+arenaname+"§cArenaに"+groupname+"§cを除外しました。");
                     return true;
                 }else if(args[1].equalsIgnoreCase("pexmode")) {
@@ -440,8 +527,28 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
                         return true;
                     }
                     config1.set("arenas."+arenaname+".pexmode",trueorfalse);
-                    saveConfig();
+                    cc.saveConfig();
                     p.sendMessage(prefix + "§e"+arenaname+"§aArenaのpexmodeを§e"+trueorfalse+"§aに設定しました。");
+                    return true;
+                }else if(args[1].equalsIgnoreCase("setkit")) {
+                    if (!p.hasPermission("man10pvpscore.arena.kitset")) {
+                        p.sendMessage(prefix + "§cあなたにはアリーナのkitを設定する権限がありません！");
+                        return true;
+                    }
+                    String arenaname = args[2];
+                    if(!config1.contains("arenas."+arenaname)){
+                        p.sendMessage(prefix + "§cそのarenaは存在しません！");
+                        return true;
+                    }
+                    String kitname = args[3];
+                    if(!config1.contains("kit."+kitname)){
+                        p.sendMessage(prefix+"§4そのkitは存在しません");
+                        p.sendMessage(prefix+"§ckitを作成: /mps kit create [kit名]");
+                        return true;
+                    }
+                    config1.set("arenas."+arenaname+".kit",kitname);
+                    cc.saveConfig();
+                    p.sendMessage(prefix+"§e"+arenaname+"§aArenaに§e"+kitname+"§akitを設定しました。");
                     return true;
                 }
             }
@@ -458,17 +565,32 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         pc = new Playercontain();
         pg = new Pointget();
         ps = new Pointset();
+        cc = new CustomConfig(this,"data.yml");
         getCommand("mps").setExecutor(this);
         saveDefaultConfig();
         FileConfiguration config = getConfig();
-        config1 = config;
-        worlds = config1.getStringList("pvpworlds");
+        config2 = config;
+        cc.saveDefaultConfig();
+        FileConfiguration config3 = cc.getConfig();
+        config1 = config3;
+        worlds = config2.getStringList("pvpworlds");
         playerState = new HashMap<>();
+        kitpvp = new HashMap<>();
     }
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+        for(Player p:Bukkit.getOnlinePlayers()){
+            if(kitpvp.containsKey(p.getUniqueId())){
+                PlayerInventory inv = kitpvp.get(p.getUniqueId());
+                p.getInventory().clear();
+                p.getInventory().setArmorContents(inv.getArmorContents());
+                p.getInventory().setContents(inv.getContents());
+                p.updateInventory();
+                p.teleport(p.getBedSpawnLocation());
+                p.sendMessage(prefix+"§aプラグイン停止のため、kitを元に戻しテレポートしました。");
+            }
+        }
     }
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
@@ -479,12 +601,56 @@ public final class Man10PVPscore extends JavaPlugin implements Listener {
         }
     }
     @EventHandler
+    public void onLeave(PlayerQuitEvent event) {
+        Player p = event.getPlayer();
+        if(kitpvp.containsKey(p.getUniqueId())){
+            PlayerInventory inv = kitpvp.get(p.getUniqueId());
+            p.getInventory().clear();
+            p.getInventory().setArmorContents(inv.getArmorContents());
+            p.getInventory().setContents(inv.getContents());
+            p.updateInventory();
+            p.teleport(p.getBedSpawnLocation());
+        }
+    }
+    @EventHandler
+    public void commandCancel(PlayerCommandPreprocessEvent e) {
+        Player p = e.getPlayer();
+        if(kitpvp.containsKey(p.getUniqueId())){
+            if (p.isOp()) {
+                return;
+            }
+            if (e.getMessage().equalsIgnoreCase("/mps leave")) {
+                return;
+            }
+            p.sendMessage(prefix + "kitpvp中はコマンドの使用が認められていません！");
+            e.setCancelled(true);
+            return;
+        }
+    }
+    @EventHandler
+    public void playerChangeWorldEvent(PlayerChangedWorldEvent e){
+        Player p = e.getPlayer();
+        if(kitpvp.containsKey(p.getUniqueId())){
+            p.sendMessage(prefix + "ワールド移動したため強制的にpvpモードを終了しました。");
+            p.chat("/mps leave");
+            return;
+        }
+    }
+    @EventHandler
     public void onDeath(PlayerDeathEvent event){
         if(!worlds.contains(event.getEntity().getWorld().getName())){
             return;
         }
         Player korosita = event.getEntity().getKiller();
         Player korosareta = event.getEntity();
+        if(kitpvp.containsKey(korosareta.getUniqueId())){
+            PlayerInventory inv = kitpvp.get(korosareta.getUniqueId());
+            korosareta.getInventory().clear();
+            korosareta.getInventory().setArmorContents(inv.getArmorContents());
+            korosareta.getInventory().setContents(inv.getContents());
+            korosareta.updateInventory();
+            korosareta.teleport(korosareta.getBedSpawnLocation());
+        }
         if(playerState.containsKey(korosita.getUniqueId())){
             korosita.sendMessage(prefix+"§aおめでとう！あなたは復活した！");
             korosareta.sendMessage(prefix+"§cあなたは"+korosita.getName()+"にkillされたが相手は復活戦モードだった");
