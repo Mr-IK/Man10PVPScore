@@ -31,7 +31,7 @@ public class MySOLManager {
         this.conName = name;
         loadConfig();
         Connect(HOST, DB, USER, PASS, PORT);
-        execute("create table if not exists playerdata(id int auto_increment not null primary key, point int, uuid varchar(40));");
+        execute("create table if not exists pvpdata(id int auto_increment not null primary key, point int, uuid varchar(40), kill_stroke int, kill int, death, int);");
     }
 
     /////////////////////////////////
